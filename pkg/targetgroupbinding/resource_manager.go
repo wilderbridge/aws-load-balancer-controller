@@ -3,7 +3,6 @@ package targetgroupbinding
 import (
 	"context"
 	"fmt"
-	"net/netip"
 	"time"
 
 	"k8s.io/client-go/tools/record"
@@ -145,7 +144,7 @@ func (m *defaultResourceManager) reconcileWithIPTargetType(ctx context.Context, 
 		}
 	}
 	if len(unmatchedEndpoints) > 0 {
-		if err := m.registerPodEndpoints(ctx, tgARN, unmatchedEndpoints); err != nil {
+		if err := m.registerPodEndpoints(ctx, tgARN, unmatchedEndpoints, true); err != nil {
 			return err
 		}
 	}
@@ -382,18 +381,7 @@ func (m *defaultResourceManager) deregisterTargets(ctx context.Context, tgARN st
 	return m.targetsManager.DeregisterTargets(ctx, tgARN, sdkTargets)
 }
 
-func (m *defaultResourceManager) registerPodEndpoints(ctx context.Context, tgARN string, endpoints []backend.PodEndpoint) error {
-	vpcInfo, err := m.vpcInfoProvider.FetchVPCInfo(ctx, m.vpcID)
-	if err != nil {
-		return err
-	}
-	var vpcRawCIDRs []string
-	vpcRawCIDRs = append(vpcRawCIDRs, vpcInfo.AssociatedIPv4CIDRs()...)
-	vpcRawCIDRs = append(vpcRawCIDRs, vpcInfo.AssociatedIPv6CIDRs()...)
-	vpcCIDRs, err := networking.ParseCIDRs(vpcRawCIDRs)
-	if err != nil {
-		return err
-	}
+func (m *defaultResourceManager) registerPodEndpoints(ctx context.Context, tgARN string, endpoints []backend.PodEndpoint, skipVpc bool) error {
 
 	sdkTargets := make([]elbv2sdk.TargetDescription, 0, len(endpoints))
 	for _, endpoint := range endpoints {
@@ -401,13 +389,7 @@ func (m *defaultResourceManager) registerPodEndpoints(ctx context.Context, tgARN
 			Id:   awssdk.String(endpoint.IP),
 			Port: awssdk.Int64(endpoint.Port),
 		}
-		podIP, err := netip.ParseAddr(endpoint.IP)
-		if err != nil {
-			return err
-		}
-		if !networking.IsIPWithinCIDRs(podIP, vpcCIDRs) {
-			target.AvailabilityZone = awssdk.String("all")
-		}
+		target.AvailabilityZone = awssdk.String("all")
 		sdkTargets = append(sdkTargets, target)
 	}
 	return m.targetsManager.RegisterTargets(ctx, tgARN, sdkTargets)

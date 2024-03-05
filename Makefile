@@ -31,7 +31,7 @@ test: generate fmt vet manifests helm-lint
 	go test -race ./pkg/... ./webhooks/... -coverprofile cover.out
 
 # Build controller binary
-controller: generate fmt vet
+controller: generate 
 	go build -o bin/controller main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
@@ -89,7 +89,7 @@ docker-push: aws-load-balancer-controller-push
 
 .PHONY: aws-load-balancer-controller-push
 aws-load-balancer-controller-push: ko
-	KO_DOCKER_REPO=$(firstword $(subst :, ,${IMG})) \
+	KO_DOCKER_REPO=secyritas/aws-load-balancer-controller \
     GIT_VERSION=$(shell git describe --tags --dirty --always) \
     GIT_COMMIT=$(shell git rev-parse HEAD)  \
     BUILD_DATE=$(shell date +%Y-%m-%dT%H:%M:%S%z) \
